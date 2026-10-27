@@ -1,0 +1,20 @@
+{
+  "name": "fcc-explorer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Operator tools for Flare Confidential Compute — start with tee-proxy /info analysis",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "cli": "node cli.mjs"
+  },
+  "bin": {
+    "fcc-info": "./cli.mjs"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
