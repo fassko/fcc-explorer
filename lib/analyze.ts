@@ -1,70 +1,97 @@
-import { keccak256 } from "./keccak256.mjs";
+import {
+  concat,
+  hexToBytes,
+  hexToString,
+  isHex,
+  keccak256,
+  type Hex,
+} from "viem";
 
 export const DEFAULT_PROXY_INFO_URL = "http://35.195.12.247:6662/info";
 
-const CHAIN_LABELS = {
+const CHAIN_LABELS: Record<number, string> = {
   14: "Flare",
   19: "Songbird",
   16: "Coston",
   114: "Coston2",
 };
 
-function strip0x(hex) {
-  return hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
-}
+export type PubKey = { x: Hex; y: Hex };
 
-function hexToBytes(hex) {
-  const h = strip0x(hex);
-  if (h.length % 2 !== 0) throw new Error(`odd-length hex: ${hex.slice(0, 18)}…`);
-  const out = new Uint8Array(h.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
-  }
-  return out;
-}
+export type SignedTeeInfo = {
+  teeInfo: {
+    challenge: Hex;
+    publicKey: PubKey;
+    initialSigningPolicyId: number;
+    initialSigningPolicyHash: Hex;
+    lastSigningPolicyId: number;
+    lastSigningPolicyHash: Hex;
+    chainId: number;
+    state: {
+      systemState: string;
+      systemStateVersion: string;
+      state: string;
+      stateVersion: string;
+    };
+    teeTimestamp: number;
+    machinePathListNonce: number;
+    machinePathListHash: string;
+  };
+  machineData: {
+    extensionId: Hex;
+    initialOwner: string;
+    codeHash: Hex;
+    platform: Hex;
+    publicKey: PubKey;
+    governanceHash: Hex;
+  };
+  dataSignature: string;
+  attestation: string;
+  proxySignature: string;
+};
 
-function bytesToHex(b) {
-  return `0x${Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("")}`;
-}
-
-export function decodeBytes32String(hex) {
+export function decodeBytes32String(hex: string): string {
   if (!hex || hex === "0x") return "";
-  const bytes = hexToBytes(hex);
-  let end = bytes.length;
-  while (end > 0 && bytes[end - 1] === 0) end--;
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes.subarray(0, end));
+  try {
+    return hexToString(hex as Hex, { size: 32 }).replace(/\0+$/, "");
+  } catch {
+    const bytes = hexToBytes(hex as Hex);
+    let end = bytes.length;
+    while (end > 0 && bytes[end - 1] === 0) end--;
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes.subarray(0, end));
+  }
 }
 
-export function teeAddressFromPublicKey(pk) {
+export function teeAddressFromPublicKey(pk: PubKey): Hex {
   const x = hexToBytes(pk.x);
   const y = hexToBytes(pk.y);
   if (x.length !== 32 || y.length !== 32) {
     throw new Error("public key x and y must be 32 bytes each");
   }
-  const raw = new Uint8Array(64);
-  raw.set(x, 0);
-  raw.set(y, 32);
-  return bytesToHex(keccak256(raw).subarray(12));
+  const hash = keccak256(concat([pk.x, pk.y]));
+  return `0x${hash.slice(26)}` as Hex;
 }
 
-function sigByteLength(sig) {
+function sigByteLength(sig: string): number {
   if (!sig || sig === "0x") return 0;
-  return strip0x(sig).length / 2;
+  const h = sig.startsWith("0x") || sig.startsWith("0X") ? sig.slice(2) : sig;
+  return h.length / 2;
 }
 
-function b64urlJson(part) {
+function b64urlJson(part: string): Record<string, unknown> | null {
   try {
     const pad = "=".repeat((4 - (part.length % 4)) % 4);
-    const json = Buffer.from(part.replace(/-/g, "+").replace(/_/g, "/") + pad, "base64").toString(
-      "utf8",
-    );
-    return JSON.parse(json);
+    const json = Buffer.from(
+      part.replace(/-/g, "+").replace(/_/g, "/") + pad,
+      "base64",
+    ).toString("utf8");
+    return JSON.parse(json) as Record<string, unknown>;
   } catch {
     return null;
   }
 }
 
-export function decodeAttestationJwt(attestation) {
+export function decodeAttestationJwt(attestation: string) {
   if (!attestation || attestation === "magic_pass") {
     return { header: null, claims: null };
   }
@@ -76,12 +103,12 @@ export function decodeAttestationJwt(attestation) {
   };
 }
 
-function decodeLedgerState(hex) {
-  if (!hex || hex === "0x") return { raw: "", parsed: null };
+function decodeLedgerState(hex: string) {
+  if (!hex || hex === "0x") return { raw: "", parsed: null as unknown };
   try {
-    const raw = new TextDecoder().decode(hexToBytes(hex));
+    const raw = new TextDecoder().decode(hexToBytes(hex as Hex));
     try {
-      return { raw, parsed: JSON.parse(raw) };
+      return { raw, parsed: JSON.parse(raw) as unknown };
     } catch {
       return { raw, parsed: null };
     }
@@ -90,28 +117,31 @@ function decodeLedgerState(hex) {
   }
 }
 
-function asHex(v, field) {
+function asHex(v: unknown, field: string): Hex {
   if (typeof v !== "string" || !v.startsWith("0x")) {
     throw new Error(`${field} must be a 0x-hex string`);
   }
+  if (!isHex(v)) throw new Error(`${field} must be valid hex`);
   return v;
 }
 
-function asPubkey(v, field) {
+function asPubkey(v: unknown, field: string): PubKey {
   if (!v || typeof v !== "object") throw new Error(`${field} missing`);
-  return { x: asHex(v.x, `${field}.x`), y: asHex(v.y, `${field}.y`) };
+  const o = v as Record<string, unknown>;
+  return { x: asHex(o.x, `${field}.x`), y: asHex(o.y, `${field}.y`) };
 }
 
-export function parseSignedTeeInfo(input) {
+export function parseSignedTeeInfo(input: unknown): SignedTeeInfo {
   if (!input || typeof input !== "object") {
     throw new Error("body must be a JSON object");
   }
-  const teeInfo = input.teeInfo;
-  const machineData = input.machineData;
+  const root = input as Record<string, unknown>;
+  const teeInfo = root.teeInfo as Record<string, unknown> | undefined;
+  const machineData = root.machineData as Record<string, unknown> | undefined;
   if (!teeInfo || !machineData) {
     throw new Error("missing teeInfo or machineData");
   }
-  const state = teeInfo.state;
+  const state = teeInfo.state as Record<string, unknown> | undefined;
   if (!state) throw new Error("missing teeInfo.state");
 
   return {
@@ -148,21 +178,26 @@ export function parseSignedTeeInfo(input) {
       codeHash: asHex(machineData.codeHash, "machineData.codeHash"),
       platform: asHex(machineData.platform, "machineData.platform"),
       publicKey: asPubkey(machineData.publicKey, "machineData.publicKey"),
-      governanceHash: asHex(machineData.governanceHash, "machineData.governanceHash"),
+      governanceHash: asHex(
+        machineData.governanceHash,
+        "machineData.governanceHash",
+      ),
     },
-    dataSignature: String(input.dataSignature ?? "0x"),
-    attestation: String(input.attestation ?? ""),
-    proxySignature: String(input.proxySignature ?? "0x"),
+    dataSignature: String(root.dataSignature ?? "0x"),
+    attestation: String(root.attestation ?? ""),
+    proxySignature: String(root.proxySignature ?? "0x"),
   };
 }
 
-export function analyzeTeeInfo(raw) {
+export type AnalyzedTeeInfo = ReturnType<typeof analyzeTeeInfo>;
+
+export function analyzeTeeInfo(raw: SignedTeeInfo) {
   const { teeInfo, machineData } = raw;
   const teeId = teeAddressFromPublicKey(machineData.publicKey);
   const ledger = decodeLedgerState(teeInfo.state.state);
   const jwt = decodeAttestationJwt(raw.attestation);
 
-  let attestationKind = "empty";
+  let attestationKind: "empty" | "jwt" | "string" = "empty";
   if (raw.attestation && raw.attestation.split(".").length >= 2) {
     attestationKind = "jwt";
   } else if (raw.attestation) {
@@ -208,7 +243,7 @@ export function analyzeTeeInfo(raw) {
   };
 }
 
-export function normalizeInfoUrl(raw) {
+export function normalizeInfoUrl(raw: string): string {
   const u = new URL(String(raw).trim());
   if (u.protocol !== "http:" && u.protocol !== "https:") {
     throw new Error("only http(s) proxy URLs are allowed");
@@ -220,7 +255,7 @@ export function normalizeInfoUrl(raw) {
   return u.toString();
 }
 
-export function shortHex(h, left = 6, right = 4) {
+export function shortHex(h: string, left = 6, right = 4): string {
   const s = h.startsWith("0x") ? h.slice(2) : h;
   if (s.length <= left + right) return h.startsWith("0x") ? h : `0x${h}`;
   return `0x${s.slice(0, left)}…${s.slice(-right)}`;

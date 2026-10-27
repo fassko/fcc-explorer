@@ -1,21 +1,24 @@
 # FCC Explorer
 
-Operator tools for [Flare Confidential Compute](https://dev.flare.network/).
+Operator tools for [Flare Confidential Compute](https://dev.flare.network/fcc).
 
 Look up an extension id and open the TEE machine that is in `PRODUCTION`, or decode a tee-proxy `GET /info` response: machine identity, attested ledger state, and Confidential Space claims.
 
+Built with **Next.js** (App Router), **TypeScript**, **wagmi** / **viem**, and [`@flarenetwork/flare-wagmi-periphery-package`](https://www.npmjs.com/package/@flarenetwork/flare-wagmi-periphery-package) for typed `IMachineManager` / `IExtensionManager` reads.
+
 ## Run the UI
 
-Needs Node 18+ (uses global `fetch`). No install step.
+Needs Node 20+.
 
 ```bash
-npm start
+npm install
+npm run dev
 ```
 
-Open [http://127.0.0.1:3456](http://127.0.0.1:3456).
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
 ```bash
-PORT=4000 HOST=0.0.0.0 npm start
+npm run build && npm start
 ```
 
 ## CLI
@@ -42,11 +45,8 @@ Enter an extension id (decimal or `0x` hex) on Coston2 or Coston. The app calls 
 
 ```
 fcc-explorer/
-  server.mjs       # static UI + /api/extension + /api/analyze + /api/instruction-sender
-  cli.mjs          # same decode on the terminal
-  lib/analyze.mjs
-  lib/chain.mjs
-  lib/instruction-sender.mjs
-  lib/keccak256.mjs
-  public/
+  app/                 # Next.js App Router (UI + API routes)
+  components/          # React explorer UI + wagmi on-chain panel
+  lib/                 # analyze, chain (viem + Flare ABIs), instruction-sender, wagmi config
+  cli.ts               # same decode on the terminal
 ```

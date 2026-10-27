@@ -12,8 +12,9 @@
   --warn: #e6b84d;
   --warn-dim: rgba(230, 184, 77, 0.14);
   --err: #ff6b6b;
-  --mono: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
-  --sans: "Sora", "Segoe UI", system-ui, sans-serif;
+  --mono: var(--font-plex-mono), "IBM Plex Mono", "SF Mono", ui-monospace, Menlo,
+    monospace;
+  --sans: var(--font-sora), "Sora", "Segoe UI", system-ui, sans-serif;
 }
 
 * {

@@ -2,9 +2,9 @@
 /**
  * Decode a tee-proxy GET /info on the command line.
  *
- *   node cli.mjs
- *   node cli.mjs http://127.0.0.1:52699/info
- *   curl -sS <proxy>/info | node cli.mjs --stdin
+ *   npm run cli
+ *   npm run cli -- http://127.0.0.1:52699/info
+ *   curl -sS <proxy>/info | npm run cli -- --stdin
  */
 
 import {
@@ -13,19 +13,24 @@ import {
   normalizeInfoUrl,
   parseSignedTeeInfo,
   shortHex,
-} from "./lib/analyze.mjs";
-import { lookupTeeMachine } from "./lib/chain.mjs";
+  type AnalyzedTeeInfo,
+} from "./lib/analyze";
+import { lookupTeeMachine } from "./lib/chain";
 
 async function readStdin() {
-  const chunks = [];
-  for await (const c of process.stdin) chunks.push(c);
+  const chunks: Buffer[] = [];
+  for await (const c of process.stdin) chunks.push(c as Buffer);
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function print(analyzed, source, onchain) {
+function print(
+  analyzed: AnalyzedTeeInfo,
+  source: string,
+  onchain: Awaited<ReturnType<typeof lookupTeeMachine>> | { error: string } | null,
+) {
   const a = analyzed;
   const statusLine = onchain
-    ? onchain.error
+    ? "error" in onchain
       ? `status          error: ${onchain.error}`
       : `status          ${onchain.label} (${onchain.status})  [IMachineManager]`
     : null;
@@ -48,14 +53,14 @@ function print(analyzed, source, onchain) {
     `keys match      ${a.keysMatch}`,
   ].filter((line) => line != null);
   if (a.attestationClaims?.sub) {
-    lines.push(`attestation sub ${a.attestationClaims.sub}`);
+    lines.push(`attestation sub ${String(a.attestationClaims.sub)}`);
   }
   if (a.attestationClaims?.dbgstat) {
-    lines.push(`dbgstat         ${a.attestationClaims.dbgstat}`);
+    lines.push(`dbgstat         ${String(a.attestationClaims.dbgstat)}`);
   }
   console.log(lines.join("\n"));
 
-  if (onchain && !onchain.error) {
+  if (onchain && !("error" in onchain)) {
     console.log("\non-chain (IMachineManager)");
     console.log(`  owner         ${onchain.owner}`);
     console.log(`  tee proxy id  ${onchain.machine?.teeProxyId || "—"}`);
@@ -94,8 +99,8 @@ function print(analyzed, source, onchain) {
 
 async function main() {
   const args = process.argv.slice(2);
-  let source;
-  let json;
+  let source: string;
+  let json: unknown;
 
   if (args.includes("--stdin") || args.includes("-")) {
     source = "stdin";
@@ -113,7 +118,8 @@ async function main() {
   }
 
   const analyzed = analyzeTeeInfo(parseSignedTeeInfo(json));
-  let onchain = null;
+  let onchain: Awaited<ReturnType<typeof lookupTeeMachine>> | { error: string } | null =
+    null;
   try {
     onchain = await lookupTeeMachine({
       chainId: analyzed.chainId,
@@ -121,12 +127,12 @@ async function main() {
       extensionId: analyzed.extensionId,
     });
   } catch (e) {
-    onchain = { error: e.message || String(e) };
+    onchain = { error: e instanceof Error ? e.message : String(e) };
   }
   print(analyzed, source, onchain);
 }
 
 main().catch((e) => {
-  console.error(e.message || e);
+  console.error(e instanceof Error ? e.message : e);
   process.exit(1);
 });
