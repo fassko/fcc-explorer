@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * FCC Explorer — tee-proxy /info UI.
- * Serves the static app, proxies GET /info (avoids browser CORS),
- * and resolves InstructionSender via FlareTeeManager + explorer APIs.
+ * Serves the static app, looks up PRODUCTION machines by extension id,
+ * proxies GET /info (avoids browser CORS), and resolves InstructionSender.
  *
  *   npm start
  *   open http://127.0.0.1:3456
@@ -16,7 +16,12 @@ import {
   normalizeInfoUrl,
   parseSignedTeeInfo,
 } from "./lib/analyze.mjs";
-import { getChain, lookupTeeMachine, normalizeAddress } from "./lib/chain.mjs";
+import {
+  getChain,
+  lookupProductionExtension,
+  lookupTeeMachine,
+  normalizeAddress,
+} from "./lib/chain.mjs";
 import { lookupInstructionSender } from "./lib/instruction-sender.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -97,6 +102,50 @@ app.get("/api/instruction-sender", async (req, res) => {
     res.json(result);
   } catch (e) {
     const status = e?.code === "UNSUPPORTED_CHAIN" ? 400 : 502;
+    res.status(status).json({ ok: false, error: e.message || String(e) });
+  }
+});
+
+app.get("/api/extension", async (req, res) => {
+  const extensionId = req.query.extensionId;
+  const chainId = req.query.chainId;
+  const indexRaw = req.query.index;
+  try {
+    const found = await lookupProductionExtension({ extensionId, chainId });
+    let index = 0;
+    if (indexRaw != null && indexRaw !== "") {
+      index = Number(indexRaw);
+      if (!Number.isInteger(index) || index < 0) {
+        res.status(400).json({ ok: false, error: `invalid index: ${indexRaw}` });
+        return;
+      }
+    }
+
+    const machine = found.machines[index] ?? null;
+    let source = null;
+    let analyzed = null;
+    let fetchError = null;
+    if (machine) {
+      try {
+        source = normalizeInfoUrl(machine.url);
+        const json = await fetchInfo(source);
+        analyzed = analyzeTeeInfo(parseSignedTeeInfo(json));
+      } catch (e) {
+        fetchError = e.message || String(e);
+      }
+    }
+
+    res.set("Cache-Control", "no-store");
+    res.json({
+      ok: true,
+      ...found,
+      selected: machine ? index : null,
+      source,
+      analyzed,
+      fetchError,
+    });
+  } catch (e) {
+    const status = e?.code === "UNSUPPORTED_CHAIN" || e?.code === "BAD_INPUT" ? 400 : 502;
     res.status(status).json({ ok: false, error: e.message || String(e) });
   }
 });

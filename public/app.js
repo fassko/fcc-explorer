@@ -7,14 +7,19 @@ const EXPLORERS = {
 
 const $ = (id) => document.getElementById(id);
 
+const modeExtension = $("mode-extension");
 const modeFetch = $("mode-fetch");
 const modePaste = $("mode-paste");
+const extensionBox = $("extension-box");
 const fetchBox = $("fetch-box");
 const pasteBox = $("paste-box");
+const extensionInput = $("extension-id");
+const chainSelect = $("chain");
 const urlInput = $("url");
 const pasteInput = $("paste");
 const errEl = $("error");
 const results = $("results");
+const btnExtension = $("find-extension");
 const btnFetch = $("analyze-fetch");
 const btnPaste = $("analyze-paste");
 
@@ -43,11 +48,16 @@ function showError(msg) {
 }
 
 function setMode(mode) {
-  const fetch = mode === "fetch";
-  modeFetch.setAttribute("aria-pressed", fetch ? "true" : "false");
-  modePaste.setAttribute("aria-pressed", fetch ? "false" : "true");
-  fetchBox.classList.toggle("hidden", !fetch);
-  pasteBox.classList.toggle("hidden", fetch);
+  const boxes = [
+    ["extension", modeExtension, extensionBox],
+    ["fetch", modeFetch, fetchBox],
+    ["paste", modePaste, pasteBox],
+  ];
+  for (const [name, btn, box] of boxes) {
+    const on = mode === name;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    box.classList.toggle("hidden", !on);
+  }
 }
 
 async function copyText(text, btn) {
@@ -514,6 +524,92 @@ async function loadMachineStatus(teeId, chainId, extensionId, ctx = {}) {
   }
 }
 
+function productionNote(data) {
+  if (!data.machines?.length) return "";
+  const n = data.machines.length;
+  const which =
+    n === 1
+      ? "1 PRODUCTION machine"
+      : `${n} PRODUCTION machines`;
+  const picks =
+    n > 1
+      ? `<div class="modes" role="tablist" style="margin:0.55rem 0 0">
+          ${data.machines
+            .map((m, i) => {
+              const on = i === data.selected;
+              return `<button type="button" class="mode prod-pick" data-index="${i}" aria-pressed="${on ? "true" : "false"}">${escapeHtml(shortHex(m.teeId, 6, 4))}</button>`;
+            })
+            .join("")}
+        </div>`
+      : "";
+  return `<p class="lead" style="margin:0 0 0.85rem">
+      ${escapeHtml(which)} for extension
+      <span class="mono">${escapeHtml(String(data.extensionId))}</span>
+      on ${escapeHtml(data.chainLabel || "")}.
+    </p>${picks}`;
+}
+
+function bindProductionPicks(root) {
+  root.querySelectorAll("button.prod-pick").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const index = Number(btn.dataset.index);
+      if (Number.isInteger(index)) findExtension(index);
+    });
+  });
+}
+
+function renderExtensionMiss(body) {
+  const registered = Boolean(body.instructionsSender);
+  const machines = Array.isArray(body.machines) ? body.machines : [];
+  const chainId = body.chainId;
+  const lead = body.fetchError
+    ? `The registry lists a PRODUCTION machine, but its proxy did not return /info.`
+    : registered
+      ? `Registered on ${body.chainLabel}, with no machine in PRODUCTION.`
+      : `No extension ${body.extensionId} is registered on ${body.chainLabel}.`;
+
+  const machineRows = machines
+    .map(
+      (m) => `<tr>
+        <td><a class="mono" href="${escapeHtml(addrUrl(chainId, m.teeId))}" target="_blank" rel="noopener noreferrer">${escapeHtml(shortHex(m.teeId, 8, 6))}</a></td>
+        <td class="mono">${escapeHtml(m.url || "—")}</td>
+        <td>${
+          m.url
+            ? `<a href="${escapeHtml(String(m.url).replace(/\/$/, "") + "/info")}" target="_blank" rel="noopener noreferrer">/info</a>`
+            : ""
+        }</td>
+      </tr>`,
+    )
+    .join("");
+
+  results.innerHTML = `
+    <section class="panel">
+      <h2>Extension ${escapeHtml(String(body.extensionId))}</h2>
+      ${productionNote(body)}
+      <p class="lead">${escapeHtml(lead)}</p>
+      ${
+        body.fetchError
+          ? `<p class="lead err-inline">${escapeHtml(body.fetchError)}</p>`
+          : ""
+      }
+      ${
+        machines.length
+          ? `<div class="table-wrap data-table">
+              <table>
+                <thead><tr><th>TEE id</th><th>Registered URL</th><th></th></tr></thead>
+                <tbody>${machineRows}</tbody>
+              </table>
+            </div>`
+          : ""
+      }
+    </section>
+    ${registered ? senderPanelLoading() : ""}
+  `;
+  results.classList.remove("hidden");
+  bindProductionPicks(results);
+  if (registered) loadInstructionSender(body.extensionId, body.chainId);
+}
+
 function render(data) {
   const a = data.analyzed;
   const ledger = a.ledgerState;
@@ -543,13 +639,29 @@ function render(data) {
           : "Empty state (0x)."
       }</p>${a.ledgerStateRaw ? `<pre>${escapeHtml(a.ledgerStateRaw)}</pre>` : ""}`;
 
+  const queriedId = data.extensionId != null ? String(data.extensionId) : null;
+  const idMismatch =
+    queriedId != null && String(a.extensionId) !== queriedId
+      ? `<span class="badge warn" style="margin-left:.4rem">proxy extension ≠ ${escapeHtml(queriedId)}</span>`
+      : "";
+  const registryTee = data.machines?.[data.selected]?.teeId;
+  const teeMismatch =
+    registryTee && a.teeId && registryTee.toLowerCase() !== String(a.teeId).toLowerCase();
+
   results.innerHTML = `
     <section class="panel">
+      ${productionNote(data)}
       <div class="panel-head">
         <div>
           <h2>Machine</h2>
           <p class="lead" style="margin:0.25rem 0 0">
             Source <span class="mono">${escapeHtml(data.source)}</span>
+            ${idMismatch}
+            ${
+              teeMismatch
+                ? `<span class="badge warn" style="margin-left:.4rem">proxy TEE ≠ registry</span>`
+                : ""
+            }
             ${
               a.keysMatch
                 ? ""
@@ -687,12 +799,45 @@ function render(data) {
       copyText(decodeURIComponent(btn.dataset.copy || ""), btn),
     );
   });
+  bindProductionPicks(results);
 
-  loadMachineStatus(a.teeId, a.chainId, a.extensionId, {
+  const statusTee = teeMismatch ? registryTee : a.teeId;
+  const statusChain = data.chainId ?? a.chainId;
+  const statusExt = queriedId ?? a.extensionId;
+  loadMachineStatus(statusTee, statusChain, statusExt, {
     source: data.source,
     initialOwner: a.initialOwner,
   });
-  loadInstructionSender(a.extensionId, a.chainId);
+  loadInstructionSender(statusExt, statusChain);
+}
+
+async function findExtension(index = 0) {
+  showError("");
+  const extensionId = extensionInput.value.trim();
+  if (!extensionId) {
+    showError("Enter an extension id (decimal or 0x hex).");
+    return;
+  }
+  btnExtension.disabled = true;
+  btnExtension.textContent = "Finding…";
+  try {
+    const q = new URLSearchParams({
+      extensionId,
+      chainId: chainSelect.value,
+      index: String(index),
+    });
+    const res = await fetch(`/api/extension?${q}`);
+    const body = await readJson(res);
+    if (!res.ok || !body.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    if (body.extensionId) extensionInput.value = body.extensionId;
+    if (body.analyzed) render(body);
+    else renderExtensionMiss(body);
+  } catch (e) {
+    showError(e.message || String(e));
+  } finally {
+    btnExtension.disabled = false;
+    btnExtension.textContent = "Find";
+  }
 }
 
 async function analyzeFetch() {
@@ -745,10 +890,15 @@ async function analyzePaste() {
   }
 }
 
+modeExtension.addEventListener("click", () => setMode("extension"));
 modeFetch.addEventListener("click", () => setMode("fetch"));
 modePaste.addEventListener("click", () => setMode("paste"));
+btnExtension.addEventListener("click", () => findExtension(0));
 btnFetch.addEventListener("click", analyzeFetch);
 btnPaste.addEventListener("click", analyzePaste);
+extensionInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") findExtension(0);
+});
 urlInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") analyzeFetch();
 });
@@ -757,5 +907,14 @@ document.querySelectorAll("[data-url]").forEach((btn) => {
   btn.addEventListener("click", () => {
     setMode("fetch");
     urlInput.value = btn.dataset.url;
+  });
+});
+
+document.querySelectorAll("[data-extension]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setMode("extension");
+    extensionInput.value = btn.dataset.extension;
+    if (btn.dataset.chain) chainSelect.value = btn.dataset.chain;
+    findExtension(0);
   });
 });

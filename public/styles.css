@@ -109,6 +109,7 @@ header h1 em {
 
 .modes {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.35rem;
   margin-bottom: 0.85rem;
 }
@@ -122,6 +123,7 @@ header h1 em {
   border-radius: 3px;
   font: inherit;
   font-size: 0.82rem;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -140,7 +142,8 @@ label.field {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   margin-top: 0.3rem;
   padding: 0.65rem 0.75rem;
@@ -150,6 +153,25 @@ textarea {
   color: var(--text);
   font: inherit;
   font-size: 0.92rem;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 9px) 50%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 1.6rem;
+}
+
+.chain-field {
+  flex: 0 0 9.5rem;
+  min-width: 9.5rem;
 }
 
 textarea {
@@ -162,6 +184,7 @@ textarea {
 
 input:focus,
 textarea:focus,
+select:focus,
 button:focus-visible {
   outline: 2px solid var(--flare);
   outline-offset: 1px;

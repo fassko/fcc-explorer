@@ -2,7 +2,7 @@
 
 Operator tools for [Flare Confidential Compute](https://dev.flare.network/).
 
-The first tool decodes a tee-proxy `GET /info` response: machine identity, attested ledger state, and Confidential Space claims.
+Look up an extension id and open the TEE machine that is in `PRODUCTION`, or decode a tee-proxy `GET /info` response: machine identity, attested ledger state, and Confidential Space claims.
 
 ## Run the UI
 
@@ -36,13 +36,13 @@ curl -sS http://35.195.12.247:6662/info | npm run cli -- --stdin
 | Ledger state | Hex `teeInfo.state.state` decoded as UTF-8 JSON (when the extension publishes one) |
 | Attestation | JWT claims from Google Confidential Space (`hwmodel`, `sub`, `dbgstat`, …) or test `magic_pass` |
 
-Enter a live proxy URL (sandbox/local presets in the UI) or paste a saved JSON body.
+Enter an extension id (decimal or `0x` hex) on Coston2 or Coston. The app calls `IMachineManager.getActiveTeeMachines` and loads `GET /info` from the registered production proxy. You can still paste a proxy URL or a saved JSON body.
 
 ## Layout
 
 ```
 fcc-explorer/
-  server.mjs       # static UI + /api/analyze + /api/instruction-sender
+  server.mjs       # static UI + /api/extension + /api/analyze + /api/instruction-sender
   cli.mjs          # same decode on the terminal
   lib/analyze.mjs
   lib/chain.mjs

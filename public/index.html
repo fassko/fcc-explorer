@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>FCC Explorer · /info</title>
+    <title>FCC Explorer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,16 +16,20 @@
     <main>
       <header>
         <p class="brand">FCC Explorer</p>
-        <h1>Machine <em>/info</em></h1>
+        <h1>Production <em>TEE</em></h1>
         <p class="sub">
-          Decode a tee-proxy attestation: identity, ledger state, and platform
-          claims from a signed <span class="mono">GET /info</span>.
+          Enter an extension id to open the machine in
+          <span class="mono">PRODUCTION</span>, or decode a signed
+          <span class="mono">GET /info</span> from a proxy URL.
         </p>
       </header>
 
       <section class="panel input-panel">
         <div class="modes" role="tablist">
-          <button type="button" class="mode" id="mode-fetch" aria-pressed="true">
+          <button type="button" class="mode" id="mode-extension" aria-pressed="true">
+            Extension ID
+          </button>
+          <button type="button" class="mode" id="mode-fetch" aria-pressed="false">
             Fetch URL
           </button>
           <button type="button" class="mode" id="mode-paste" aria-pressed="false">
@@ -33,7 +37,34 @@
           </button>
         </div>
 
-        <div id="fetch-box">
+        <div id="extension-box">
+          <div class="row" style="align-items: flex-end">
+            <label class="field">
+              Extension ID
+              <input
+                id="extension-id"
+                spellcheck="false"
+                inputmode="text"
+                placeholder="67278 or 0x106ce"
+                autocomplete="off"
+              />
+            </label>
+            <label class="field chain-field">
+              Chain
+              <select id="chain">
+                <option value="114" selected>Coston2</option>
+                <option value="16">Coston</option>
+              </select>
+            </label>
+            <button type="button" class="btn" id="find-extension">Find</button>
+          </div>
+          <p class="presets">
+            Preset:
+            <button type="button" data-extension="67278" data-chain="114">sandbox · 67278</button>
+          </p>
+        </div>
+
+        <div id="fetch-box" class="hidden">
           <div class="row" style="align-items: flex-end">
             <label class="field">
               Proxy /info URL
