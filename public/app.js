@@ -1,5 +1,3 @@
-const DEFAULT_URL = "http://35.195.12.247:6662/info";
-
 const EXPLORERS = {
   114: "https://coston2-explorer.flare.network",
   16: "https://coston-explorer.flare.network",
@@ -639,8 +637,11 @@ function render(data) {
       <p class="lead" style="margin-top:.75rem;margin-bottom:0">
         Explorer:
         <a href="${explorerBase(chainId)}" target="_blank" rel="noopener noreferrer">${escapeHtml(a.chainLabel || "flare.network")}</a>
-        · Live proxy
-        <a href="${DEFAULT_URL}" target="_blank" rel="noopener noreferrer">/info</a>
+        ${
+          data.source && data.source !== "paste"
+            ? `· Live proxy <a href="${escapeHtml(data.source)}" target="_blank" rel="noopener noreferrer">/info</a>`
+            : ""
+        }
       </p>
     </section>
   `;
@@ -696,10 +697,15 @@ function render(data) {
 
 async function analyzeFetch() {
   showError("");
+  const url = urlInput.value.trim();
+  if (!url) {
+    showError("Enter a proxy /info URL, or use a preset.");
+    return;
+  }
   btnFetch.disabled = true;
   btnFetch.textContent = "Loading…";
   try {
-    const q = encodeURIComponent(urlInput.value.trim() || DEFAULT_URL);
+    const q = encodeURIComponent(url);
     const res = await fetch(`/api/analyze?url=${q}`);
     const body = await res.json();
     if (!body.ok) throw new Error(body.error || "analyze failed");
@@ -753,5 +759,3 @@ document.querySelectorAll("[data-url]").forEach((btn) => {
     urlInput.value = btn.dataset.url;
   });
 });
-
-analyzeFetch();

@@ -36,7 +36,7 @@ curl -sS http://35.195.12.247:6662/info | npm run cli -- --stdin
 | Ledger state | Hex `teeInfo.state.state` decoded as UTF-8 JSON (when the extension publishes one) |
 | Attestation | JWT claims from Google Confidential Space (`hwmodel`, `sub`, `dbgstat`, …) or test `magic_pass` |
 
-Fetch a live proxy URL (default: sandbox `http://35.195.12.247:6662/info`) or paste a saved JSON body.
+Enter a live proxy URL (sandbox/local presets in the UI) or paste a saved JSON body.
 
 ## Layout
 
