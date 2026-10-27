@@ -1,6 +1,6 @@
 # FCC Explorer
 
-Operator tools for [Flare Confidential Compute](https://dev.flare.network/fcc).
+Operator tools for [Flare Confidential Compute](https://dev.flare.network/fcc/overview).
 
 Look up an extension id and open the TEE machine that is in `PRODUCTION`, or decode a tee-proxy `GET /info` response: machine identity, attested ledger state, and Confidential Space claims.
 
